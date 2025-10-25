@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRICK BREAKER</title>
+<style>
+  body {
+    margin: 0;
+    background: linear-gradient(180deg, #001f3f, #001a33);
+    overflow: hidden;
+    font-family: 'Orbitron', sans-serif;
+    color: #fff;
+  }
+  #startScreen, #endPopup {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0,0,0,0.9);
+    z-index: 10;
+  }
+  #startScreen h1 {
+    font-size: 48px;
+    color: cyan;
+    text-shadow: 0 0 20px cyan, 0 0 40px blue;
+  }
+  #startScreen input {
+    padding: 10px 20px;
+    font-size: 18px;
+    border: 2px solid cyan;
+    border-radius: 10px;
+    background: black;
+    color: cyan;
+    margin-top: 20px;
+    outline: none;
+    text-align: center;
+  }
+  #startScreen button, #endPopup button {
+    margin-top: 25px;
+    padding: 10px 30px;
+    font-size: 18px;
+    background: cyan;
+    color: black;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  #startScreen button:hover, #endPopup button:hover {
+    background: white;
+  }
+  #endPopup {
+    display: none;
+    color: cyan;
+    text-align: center;
+  }
+  #endPopup h2 {
+    font-size: 40px;
+    text-shadow: 0 0 20px cyan;
+    animation: glow 1.5s infinite alternate;
+  }
+  @keyframes glow {
+    from { text-shadow: 0 0 10px cyan; }
+    to { text-shadow: 0 0 30px cyan, 0 0 50px blue; }
+  }
+  canvas {
+    display: block;
+    margin: 0 auto;
+    background: linear-gradient(180deg, #001f3f, #000);
+  }
+  #touchControls {
+    display: none;
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    width: 100%;
+    justify-content: space-around;
+    z-index: 20;
+  }
+  .touchBtn {
+    background: rgba(0,255,255,0.2);
+    border: 2px solid cyan;
+    color: cyan;
+    font-size: 24px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 100px;
+    user-select: none;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 15px cyan;
+  }
+  .touchBtn:active {
+    background: cyan;
+    color: black;
+  }
+</style>
+</head>
+<body>
+<div id="startScreen">
+  <h1>✨ BRICK BREAKER ✨</h1>
+  <input type="text" id="playerName" placeholder="Enter Your Name" maxlength="15">
+  <button onclick="startGame()">Start Game</button>
+</div>
+
+<canvas id="gameCanvas" width="480" height="640"></canvas>
+
+<div id="endPopup">
+  <h2 id="endTitle">GAME OVER</h2>
+  <p id="finalScore"></p>
+  <button onclick="restartGame()">Play Again</button>
+</div>
+
+<!-- Touch Controls for Mobile -->
+<div id="touchControls">
+  <div class="touchBtn" id="leftBtn">⬅️</div>
+  <div class="touchBtn" id="rightBtn">➡️</div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+let paddle, ball, bricks, playerName, score, lives, gameRunning, bgMusic;
+let hitSound, paddleSound, winSound, gameOverSound;
+let leftPressed = false, rightPressed = false;
+
+function startGame() {
+  playerName = document.getElementById("playerName").value || "Player";
+  document.getElementById("startScreen").style.display = "none";
+  document.getElementById("endPopup").style.display = "none";
+  loadSounds();
+  init();
+  bgMusic.play();
+  gameRunning = true;
+  gameLoop();
+}
+
+function restartGame() {
+  document.getElementById("endPopup").style.display = "none";
+  init();
+  bgMusic.currentTime = 0;
+  bgMusic.play();
+  gameRunning = true;
+  gameLoop();
+}
+
+function loadSounds() {
+  hitSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_7d19cf5c22.mp3?filename=pop-39222.mp3");
+  paddleSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_d3318b4b53.mp3?filename=click-124467.mp3");
+  gameOverSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/16/audio_4c5ab25014.mp3?filename=wrong-answer-126515.mp3");
+  winSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8a0b3085a4.mp3?filename=success-1-6297.mp3");
+  bgMusic = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_ee09e504fa.mp3?filename=cyber-funk-22089.mp3");
+  bgMusic.loop = true;
+  bgMusic.volume = 0.4;
+}
+
+function init() {
+  score = 0;
+  lives = 3;
+  paddle = { x: canvas.width/2 - 40, y: canvas.height - 30, w: 80, h: 10, speed: 6 };
+  ball = { x: canvas.width/2, y: canvas.height - 45, r: 8, dx: 3, dy: -3 };
+  bricks = [];
+  const rows = 5, cols = 8;
+  for (let r=0; r<rows; r++) {
+    for (let c=0; c<cols; c++) {
+      bricks.push({
+        x: 55*c + 30,
+        y: 25*r + 60,
+        w: 50,
+        h: 15,
+        color: `hsl(${(r*cols+c)*20},100%,60%)`,
+        hit: false
+      });
+    }
+  }
+
+  // Controls
+  document.addEventListener("keydown", keyDown);
+  document.addEventListener("keyup", keyUp);
+  document.addEventListener("mousemove", mouseMove);
+
+  // Detect mobile and enable touch
+  if (/Mobi|Android/i.test(navigator.userAgent)) {
+    document.getElementById("touchControls").style.display = "flex";
+    enableTouchControls();
+  } else {
+    document.getElementById("touchControls").style.display = "none";
+  }
+}
+
+function keyDown(e) {
+  if (e.key === "ArrowRight") rightPressed = true;
+  if (e.key === "ArrowLeft") leftPressed = true;
+}
+
+function keyUp(e) {
+  if (e.key === "ArrowRight") rightPressed = false;
+  if (e.key === "ArrowLeft") leftPressed = false;
+}
+
+function enableTouchControls() {
+  const leftBtn = document.getElementById("leftBtn");
+  const rightBtn = document.getElementById("rightBtn");
+  leftBtn.ontouchstart = () => leftPressed = true;
+  leftBtn.ontouchend = () => leftPressed = false;
+  rightBtn.ontouchstart = () => rightPressed = true;
+  rightBtn.ontouchend = () => rightPressed = false;
+}
+
+function mouseMove(e) {
+  const rect = canvas.getBoundingClientRect();
+  let mouseX = e.clientX - rect.left;
+  paddle.x = mouseX - paddle.w / 2;
+}
+
+function drawPaddle() {
+  ctx.fillStyle = "#00ffff";
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = "cyan";
+  ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+  ctx.shadowBlur = 0;
+}
+
+function drawBall() {
+  let gradient = ctx.createRadialGradient(ball.x, ball.y, 2, ball.x, ball.y, ball.r);
+  gradient.addColorStop(0, "white");
+  gradient.addColorStop(1, "cyan");
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawBricks() {
+  bricks.forEach(b=>{
+    if (!b.hit) {
+      ctx.fillStyle = b.color;
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+    }
+  });
+}
+
+function drawText() {
+  ctx.font = "16px Orbitron";
+  ctx.fillStyle = "white";
+  ctx.fillText(`Player: ${playerName}`, 20, 20);
+  ctx.fillText(`Score: ${score}`, canvas.width - 100, 20);
+  ctx.fillText(`Lives: ${lives}`, canvas.width - 100, 40);
+}
+
+function collisionDetection() {
+  bricks.forEach(b=>{
+    if (!b.hit && ball.x > b.x && ball.x < b.x+b.w && ball.y > b.y && ball.y < b.y+b.h) {
+      b.hit = true;
+      ball.dy *= -1;
+      score += 10;
+      hitSound.currentTime = 0;
+      hitSound.play();
+    }
+  });
+  if (bricks.every(b=>b.hit)) {
+    winSound.play();
+    endGame("YOU WIN!");
+  }
+}
+
+function update() {
+  if (rightPressed) paddle.x += paddle.speed;
+  if (leftPressed) paddle.x -= paddle.speed;
+  paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.w));
+
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+  if (ball.x < ball.r || ball.x > canvas.width - ball.r) ball.dx *= -1;
+  if (ball.y < ball.r) ball.dy *= -1;
+  if (ball.y > canvas.height) {
+    lives--;
+    if (lives <= 0) {
+      gameOverSound.play();
+      endGame("GAME OVER");
+    } else {
+      resetBall();
+    }
+  }
+  if (ball.x > paddle.x && ball.x < paddle.x + paddle.w &&
+      ball.y + ball.r > paddle.y && ball.y - ball.r < paddle.y + paddle.h) {
+    ball.dy = -Math.abs(ball.dy);
+    paddleSound.play();
+  }
+}
+
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height - 45;
+  ball.dx = 3;
+  ball.dy = -3;
+}
+
+function endGame(message) {
+  gameRunning = false;
+  bgMusic.pause();
+  document.getElementById("endTitle").textContent = message;
+  document.getElementById("finalScore").textContent = `Your Score: ${score}`;
+  document.getElementById("endPopup").style.display = "flex";
+}
+
+function gameLoop() {
+  if (!gameRunning) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBricks();
+  drawPaddle();
+  drawBall();
+  drawText();
+  collisionDetection();
+  update();
+  requestAnimationFrame(gameLoop);
+}
+</script>
+</body>
+</html>
