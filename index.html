@@ -1,324 +1,403 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>BRICK BREAKER</title>
 <style>
-  body {
-    margin: 0;
-    background: linear-gradient(180deg, #001f3f, #001a33);
-    overflow: hidden;
-    font-family: 'Orbitron', sans-serif;
-    color: #fff;
+  html,body { height:100%; margin:0; background:#001327; font-family: "Segoe UI", Roboto, Arial, sans-serif; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+  #gameCanvas { display:block; background: linear-gradient(180deg,#001f3f,#001027); width:100vw; height:100vh; touch-action:none; }
+  .overlay {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,0.75); z-index:20; color:#00ffd1; flex-direction:column;
   }
-  #startScreen, #endPopup {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    background: rgba(0,0,0,0.9);
-    z-index: 10;
-  }
-  #startScreen h1 {
-    font-size: 48px;
-    color: cyan;
-    text-shadow: 0 0 20px cyan, 0 0 40px blue;
-  }
-  #startScreen input {
-    padding: 10px 20px;
-    font-size: 18px;
-    border: 2px solid cyan;
-    border-radius: 10px;
-    background: black;
-    color: cyan;
-    margin-top: 20px;
-    outline: none;
-    text-align: center;
-  }
-  #startScreen button, #endPopup button {
-    margin-top: 25px;
-    padding: 10px 30px;
-    font-size: 18px;
-    background: cyan;
-    color: black;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: 0.3s;
-  }
-  #startScreen button:hover, #endPopup button:hover {
-    background: white;
-  }
-  #endPopup {
-    display: none;
-    color: cyan;
-    text-align: center;
-  }
-  #endPopup h2 {
-    font-size: 40px;
-    text-shadow: 0 0 20px cyan;
-    animation: glow 1.5s infinite alternate;
-  }
-  @keyframes glow {
-    from { text-shadow: 0 0 10px cyan; }
-    to { text-shadow: 0 0 30px cyan, 0 0 50px blue; }
-  }
-  canvas {
-    display: block;
-    margin: 0 auto;
-    background: linear-gradient(180deg, #001f3f, #000);
-  }
-  #touchControls {
-    display: none;
-    position: absolute;
-    bottom: 20px;
-    left: 0;
-    width: 100%;
-    justify-content: space-around;
-    z-index: 20;
-  }
-  .touchBtn {
-    background: rgba(0,255,255,0.2);
-    border: 2px solid cyan;
-    color: cyan;
-    font-size: 24px;
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    text-align: center;
-    line-height: 100px;
-    user-select: none;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 0 15px cyan;
-  }
-  .touchBtn:active {
-    background: cyan;
-    color: black;
-  }
+  .hidden { display:none; }
+  .ui-input { padding:12px 18px; font-size:18px; border-radius:10px; border:2px solid #00ffd1; background:#000; color:#00ffd1; outline:none; text-align:center; width:86%; max-width:320px; }
+  .ui-btn { margin-top:16px; padding:10px 20px; border-radius:10px; background:#00ffd1; color:#001; font-weight:700; border:none; cursor:pointer; font-size:16px; }
+  .popup-title { font-size:34px; margin-bottom:8px; text-shadow:0 0 14px rgba(0,255,209,0.35); }
+  .small { color:#fff; font-size:14px; margin-top:8px; }
 </style>
 </head>
 <body>
-<div id="startScreen">
-  <h1>✨ BRICK BREAKER ✨</h1>
-  <input type="text" id="playerName" placeholder="Enter Your Name" maxlength="15">
-  <button onclick="startGame()">Start Game</button>
+
+<!-- Start screen -->
+<div id="startOverlay" class="overlay">
+  <div style="text-align:center;">
+    <div class="popup-title">BRICK BREAKER</div>
+    <input id="playerName" class="ui-input" placeholder="Enter your name (optional)" maxlength="18" />
+    <div>
+      <button id="startBtn" class="ui-btn">Start Game</button>
+    </div>
+    <div class="small">Touch controls on mobile — drag or tap to move paddle</div>
+  </div>
 </div>
 
-<canvas id="gameCanvas" width="480" height="640"></canvas>
-
-<div id="endPopup">
-  <h2 id="endTitle">GAME OVER</h2>
-  <p id="finalScore"></p>
-  <button onclick="restartGame()">Play Again</button>
+<!-- End (win / game over) -->
+<div id="endOverlay" class="overlay hidden">
+  <div style="text-align:center;">
+    <div id="endTitle" class="popup-title">GAME OVER</div>
+    <div id="endScore" style="font-size:18px;margin-top:6px;color:#ffffff;"></div>
+    <div>
+      <button id="restartBtn" class="ui-btn">Play Again</button>
+    </div>
+    <div class="small" style="margin-top:10px">Refresh page to return to start screen</div>
+  </div>
 </div>
 
-<!-- Touch Controls for Mobile -->
-<div id="touchControls">
-  <div class="touchBtn" id="leftBtn">⬅️</div>
-  <div class="touchBtn" id="rightBtn">➡️</div>
-</div>
+<canvas id="gameCanvas"></canvas>
 
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-let paddle, ball, bricks, playerName, score, lives, gameRunning, bgMusic;
-let hitSound, paddleSound, winSound, gameOverSound;
-let leftPressed = false, rightPressed = false;
+/*
+ Responsive touch-first Brick Breaker
+ - Canvas auto-resizes to viewport
+ - Touch drag / tap to control paddle on mobile
+ - Arrow keys or mouse on desktop
+ - Sounds via web Audio element URLs (CDN)
+*/
 
-function startGame() {
-  playerName = document.getElementById("playerName").value || "Player";
-  document.getElementById("startScreen").style.display = "none";
-  document.getElementById("endPopup").style.display = "none";
-  loadSounds();
-  init();
-  bgMusic.play();
-  gameRunning = true;
-  gameLoop();
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+function resizeCanvas() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+  // Recompute scale-dependent values
+  computeLayout();
 }
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
-function restartGame() {
-  document.getElementById("endPopup").style.display = "none";
-  init();
-  bgMusic.currentTime = 0;
-  bgMusic.play();
-  gameRunning = true;
-  gameLoop();
+/* Layout variables scaled to screen */
+let scale = Math.min(W / 480, H / 640); // base 480x640
+let paddle, ball, bricks;
+let rows = 5, cols = 8;
+let brickW, brickH, brickGap;
+let score = 0, lives = 3;
+let running = false, playing = false, playerName = 'Player';
+let bgMusic, hitSfx, paddleSfx, winSfx, loseSfx;
+
+function computeLayout() {
+  scale = Math.min(W / 480, H / 640);
+  // paddle size relative
+  const p_w = Math.max(64, 120 * scale);
+  const p_h = Math.max(8, 14 * scale);
+  paddle = { w: p_w, h: p_h, x: (W - p_w) / 2, y: H - (40 * scale) };
+
+  // ball
+  const b_r = Math.max(6, 8 * scale);
+  ball = { r: b_r, x: W / 2, y: paddle.y - b_r - 8 * scale, dx: 4 * scale, dy: -4 * scale };
+
+  // bricks
+  brickGap = 8 * scale;
+  brickW = Math.max(36, (W - 60 * scale - (cols - 1) * brickGap) / cols);
+  brickH = Math.max(18, 18 * scale);
+
+  // init bricks array (not deleting existing unless recreating)
+  if (!bricks || bricks.length === 0) createBricks();
 }
-
-function loadSounds() {
-  hitSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_7d19cf5c22.mp3?filename=pop-39222.mp3");
-  paddleSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_d3318b4b53.mp3?filename=click-124467.mp3");
-  gameOverSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/16/audio_4c5ab25014.mp3?filename=wrong-answer-126515.mp3");
-  winSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8a0b3085a4.mp3?filename=success-1-6297.mp3");
-  bgMusic = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_ee09e504fa.mp3?filename=cyber-funk-22089.mp3");
-  bgMusic.loop = true;
-  bgMusic.volume = 0.4;
-}
-
-function init() {
-  score = 0;
-  lives = 3;
-  paddle = { x: canvas.width/2 - 40, y: canvas.height - 30, w: 80, h: 10, speed: 6 };
-  ball = { x: canvas.width/2, y: canvas.height - 45, r: 8, dx: 3, dy: -3 };
+function createBricks() {
   bricks = [];
-  const rows = 5, cols = 8;
-  for (let r=0; r<rows; r++) {
-    for (let c=0; c<cols; c++) {
-      bricks.push({
-        x: 55*c + 30,
-        y: 25*r + 60,
-        w: 50,
-        h: 15,
-        color: `hsl(${(r*cols+c)*20},100%,60%)`,
-        hit: false
-      });
+  const topOffset = 80 * scale;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = 30 * scale + c * (brickW + brickGap);
+      const y = topOffset + r * (brickH + brickGap);
+      const hue = (r * cols + c) * 12 % 360;
+      bricks.push({ x, y, w: brickW, h: brickH, hit: false, color: `hsl(${hue},90%,60%)` });
     }
   }
-
-  // Controls
-  document.addEventListener("keydown", keyDown);
-  document.addEventListener("keyup", keyUp);
-  document.addEventListener("mousemove", mouseMove);
-
-  // Detect mobile and enable touch
-  if (/Mobi|Android/i.test(navigator.userAgent)) {
-    document.getElementById("touchControls").style.display = "flex";
-    enableTouchControls();
-  } else {
-    document.getElementById("touchControls").style.display = "none";
-  }
 }
 
-function keyDown(e) {
-  if (e.key === "ArrowRight") rightPressed = true;
-  if (e.key === "ArrowLeft") leftPressed = true;
+/* Audio setup */
+function loadAudio() {
+  // we use Audio objects (works on mobile via user gesture after start)
+  hitSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_7d19cf5c22.mp3?filename=pop-39222.mp3');
+  paddleSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_d3318b4b53.mp3?filename=click-124467.mp3');
+  winSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_8a0b3085a4.mp3?filename=success-1-6297.mp3');
+  loseSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/16/audio_4c5ab25014.mp3?filename=wrong-answer-126515.mp3');
+  bgMusic = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_ee09e504fa.mp3?filename=cyber-funk-22089.mp3');
+  bgMusic.loop = true;
+  bgMusic.volume = 0.45;
 }
 
-function keyUp(e) {
-  if (e.key === "ArrowRight") rightPressed = false;
-  if (e.key === "ArrowLeft") leftPressed = false;
-}
-
-function enableTouchControls() {
-  const leftBtn = document.getElementById("leftBtn");
-  const rightBtn = document.getElementById("rightBtn");
-  leftBtn.ontouchstart = () => leftPressed = true;
-  leftBtn.ontouchend = () => leftPressed = false;
-  rightBtn.ontouchstart = () => rightPressed = true;
-  rightBtn.ontouchend = () => rightPressed = false;
-}
-
-function mouseMove(e) {
-  const rect = canvas.getBoundingClientRect();
-  let mouseX = e.clientX - rect.left;
-  paddle.x = mouseX - paddle.w / 2;
-}
-
+/* Draw functions */
+function clear() { ctx.clearRect(0,0,W,H); }
 function drawPaddle() {
-  ctx.fillStyle = "#00ffff";
-  ctx.shadowBlur = 10;
-  ctx.shadowColor = "cyan";
-  ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
-  ctx.shadowBlur = 0;
+  ctx.save();
+  ctx.fillStyle = '#00ffd1';
+  ctx.shadowBlur = 18 * scale;
+  ctx.shadowColor = 'rgba(0,255,209,0.25)';
+  roundRect(ctx, paddle.x, paddle.y, paddle.w, paddle.h, 6 * scale, true, false);
+  ctx.restore();
 }
-
 function drawBall() {
-  let gradient = ctx.createRadialGradient(ball.x, ball.y, 2, ball.x, ball.y, ball.r);
-  gradient.addColorStop(0, "white");
-  gradient.addColorStop(1, "cyan");
-  ctx.fillStyle = gradient;
+  const g = ctx.createRadialGradient(ball.x, ball.y, 1, ball.x, ball.y, ball.r);
+  g.addColorStop(0, '#fff');
+  g.addColorStop(1, '#7afad9');
+  ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
   ctx.fill();
 }
-
 function drawBricks() {
-  bricks.forEach(b=>{
+  for (const b of bricks) {
     if (!b.hit) {
+      ctx.save();
       ctx.fillStyle = b.color;
-      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.shadowBlur = 12 * scale;
+      ctx.shadowColor = 'rgba(255,255,255,0.06)';
+      roundRect(ctx, b.x, b.y, b.w, b.h, 4 * scale, true, false);
+      ctx.restore();
     }
-  });
+  }
+}
+function drawHUD() {
+  ctx.fillStyle = '#fff';
+  ctx.font = `${14 * scale}px Arial`;
+  ctx.fillText(`Player: ${playerName}`, 16 * scale, 22 * scale);
+  ctx.fillText(`Score: ${score}`, W - 110 * scale, 22 * scale);
+  ctx.fillText(`Lives: ${lives}`, W - 110 * scale, 42 * scale);
 }
 
-function drawText() {
-  ctx.font = "16px Orbitron";
-  ctx.fillStyle = "white";
-  ctx.fillText(`Player: ${playerName}`, 20, 20);
-  ctx.fillText(`Score: ${score}`, canvas.width - 100, 20);
-  ctx.fillText(`Lives: ${lives}`, canvas.width - 100, 40);
+/* Helpers */
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+  if (r === undefined) r = 5;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
 }
 
-function collisionDetection() {
-  bricks.forEach(b=>{
-    if (!b.hit && ball.x > b.x && ball.x < b.x+b.w && ball.y > b.y && ball.y < b.y+b.h) {
+/* Collision */
+function checkBrickCollision() {
+  for (const b of bricks) {
+    if (b.hit) continue;
+    if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+        ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
       b.hit = true;
       ball.dy *= -1;
       score += 10;
-      hitSound.currentTime = 0;
-      hitSound.play();
+      try { hitSfx.currentTime = 0; hitSfx.play(); } catch(e){}
+      return;
     }
-  });
-  if (bricks.every(b=>b.hit)) {
-    winSound.play();
-    endGame("YOU WIN!");
   }
 }
 
-function update() {
-  if (rightPressed) paddle.x += paddle.speed;
-  if (leftPressed) paddle.x -= paddle.speed;
-  paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.w));
-
+/* Game step */
+function updatePhysics() {
+  if (!playing) return;
   ball.x += ball.dx;
   ball.y += ball.dy;
-  if (ball.x < ball.r || ball.x > canvas.width - ball.r) ball.dx *= -1;
-  if (ball.y < ball.r) ball.dy *= -1;
-  if (ball.y > canvas.height) {
+
+  // walls
+  if (ball.x - ball.r < 0) { ball.x = ball.r; ball.dx *= -1; }
+  if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.dx *= -1; }
+  if (ball.y - ball.r < 0) { ball.y = ball.r; ball.dy *= -1; }
+
+  // paddle collision
+  if (ball.x > paddle.x && ball.x < paddle.x + paddle.w &&
+      ball.y + ball.r > paddle.y && ball.y - ball.r < paddle.y + paddle.h &&
+      ball.dy > 0) {
+    ball.dy = -Math.abs(ball.dy);
+    // adjust x velocity depending on hit offset
+    const hitPos = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
+    ball.dx = Math.max(-8*scale, Math.min(8*scale, hitPos * 8 * scale));
+    try { paddleSfx.currentTime = 0; paddleSfx.play(); } catch(e){}
+  }
+
+  // bricks
+  checkBrickCollision();
+
+  // ball lost
+  if (ball.y - ball.r > H) {
     lives--;
     if (lives <= 0) {
-      gameOverSound.play();
-      endGame("GAME OVER");
+      // game over
+      playing = false;
+      running = false;
+      try { loseSfx.play(); bgMusic.pause(); } catch(e){}
+      showEnd('GAME OVER');
     } else {
       resetBall();
     }
   }
-  if (ball.x > paddle.x && ball.x < paddle.x + paddle.w &&
-      ball.y + ball.r > paddle.y && ball.y - ball.r < paddle.y + paddle.h) {
-    ball.dy = -Math.abs(ball.dy);
-    paddleSound.play();
+
+  // win?
+  if (bricks.every(b=>b.hit)) {
+    playing = false; running = false;
+    try { winSfx.play(); bgMusic.pause(); } catch(e){}
+    showEnd('YOU WIN!');
   }
 }
 
-function resetBall() {
-  ball.x = canvas.width / 2;
-  ball.y = canvas.height - 45;
-  ball.dx = 3;
-  ball.dy = -3;
-}
-
-function endGame(message) {
-  gameRunning = false;
-  bgMusic.pause();
-  document.getElementById("endTitle").textContent = message;
-  document.getElementById("finalScore").textContent = `Your Score: ${score}`;
-  document.getElementById("endPopup").style.display = "flex";
-}
-
-function gameLoop() {
-  if (!gameRunning) return;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+/* Draw frame */
+function render() {
+  clear();
   drawBricks();
   drawPaddle();
   drawBall();
-  drawText();
-  collisionDetection();
-  update();
-  requestAnimationFrame(gameLoop);
+  drawHUD();
 }
+
+/* Main loop */
+let rafId = null;
+function tick() {
+  updatePhysics();
+  render();
+  if (running) rafId = requestAnimationFrame(tick);
+}
+
+/* Input handling */
+// touch / pointer: drag to move paddle
+let pointerActive = false;
+canvas.addEventListener('pointerdown', (e) => {
+  pointerActive = true;
+  movePaddleToPointer(e);
+  // if not playing, start on first user gesture (ensures audio play allowed)
+  if (!playing && running) {
+    startPlay();
+  }
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!pointerActive) return;
+  movePaddleToPointer(e);
+});
+canvas.addEventListener('pointerup', () => pointerActive = false);
+canvas.addEventListener('pointercancel', () => pointerActive = false);
+
+function movePaddleToPointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  paddle.x = Math.max(0, Math.min(W - paddle.w, x - paddle.w / 2));
+}
+
+// mouse move for desktop (optional)
+canvas.addEventListener('mousemove', (e) => {
+  if (/Mobi|Android/i.test(navigator.userAgent)) return; // ignore on mobile
+  if (!pointerActive) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    paddle.x = Math.max(0, Math.min(W - paddle.w, x - paddle.w / 2));
+  }
+});
+
+// keyboard (desktop)
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') paddle.x -= 14 * scale;
+  if (e.key === 'ArrowRight') paddle.x += 14 * scale;
+  if (!playing && running && (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter')) startPlay();
+  if (!running && e.key.toLowerCase() === 'r') restartFromStart();
+});
+
+/* Utilities */
+function resetBall() {
+  ball.x = W/2;
+  ball.y = paddle.y - ball.r - 8*scale;
+  ball.dx = 4 * scale * (Math.random() > 0.5 ? 1 : -1);
+  ball.dy = -4 * scale;
+  // keep paddle centered
+  paddle.x = (W - paddle.w) / 2;
+}
+function startPlay() {
+  playing = true;
+}
+function showEnd(title) {
+  document.getElementById('endTitle').textContent = title;
+  document.getElementById('endScore').textContent = 'Score: ' + score;
+  document.getElementById('endOverlay').classList.remove('hidden');
+}
+function hideStart() {
+  document.getElementById('startOverlay').style.display = 'none';
+}
+function restartFromStart() {
+  // return to start overlay
+  document.getElementById('endOverlay').classList.add('hidden');
+  document.getElementById('startOverlay').style.display = 'flex';
+  bgMusic.pause(); bgMusic.currentTime = 0;
+  running = false; playing = false; score = 0; lives = 3;
+  createBricks();
+  computeLayout();
+}
+
+/* Start / restart button wiring */
+document.getElementById('startBtn').addEventListener('click', () => {
+  playerName = (document.getElementById('playerName').value || 'Player').trim();
+  hideStart();
+  loadAudio(); // load audio on user gesture
+  bgMusic.play().catch(()=>{});
+  // init game state
+  score = 0; lives = 3; running = true; playing = false;
+  createBricks();
+  resetBall();
+  // start loop
+  if (rafId) cancelAnimationFrame(rafId);
+  tick();
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  // restart quickly
+  document.getElementById('endOverlay').classList.add('hidden');
+  score = 0; lives = 3; running = true; playing = false;
+  createBricks();
+  resetBall();
+  bgMusic.currentTime = 0;
+  bgMusic.play().catch(()=>{});
+  tick();
+});
+
+/* Initialization */
+computeLayout();
+createBricks();
+
+/* Prebind end overlay element for quick show/hide */
+document.getElementById('endOverlay').classList.add('hidden');
+document.getElementById('endOverlay').id = 'endOverlay'; // ensure exists
+// ensure start overlay elements for texts
+if (!document.getElementById('endTitle')) {
+  const eo = document.createElement('div');
+  eo.id = 'endTitle';
+}
+
+/* Safe audio loader method (called on start click) */
+function loadAudio() {
+  // prevent re-declaring if already loaded
+  if (bgMusic && typeof bgMusic.play === 'function' && !bgMusic.paused) return;
+  try {
+    hitSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_7d19cf5c22.mp3?filename=pop-39222.mp3');
+    paddleSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_d3318b4b53.mp3?filename=click-124467.mp3');
+    winSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_8a0b3085a4.mp3?filename=success-1-6297.mp3');
+    loseSfx = new Audio('https://cdn.pixabay.com/download/audio/2022/03/16/audio_4c5ab25014.mp3?filename=wrong-answer-126515.mp3');
+    bgMusic = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_ee09e504fa.mp3?filename=cyber-funk-22089.mp3');
+    bgMusic.loop = true;
+    bgMusic.volume = 0.45;
+  } catch(e) {
+    console.warn('Audio load failed', e);
+  }
+}
+
+/* Ensure overlays exist in DOM for end overlay references */
+(function ensureOverlays() {
+  const end = document.querySelector('#endOverlay');
+  if (!end) {
+    // create a basic end overlay (should already exist)
+    const div = document.createElement('div');
+    div.className = 'overlay hidden'; div.id = 'endOverlay';
+    div.innerHTML = '<div><div class="popup-title" id="endTitle">GAME OVER</div><div id="endScore"></div><button id="restartBtn" class="ui-btn">Play Again</button></div>';
+    document.body.appendChild(div);
+    document.getElementById('restartBtn').addEventListener('click', () => restartFromStart());
+  }
+})();
+
 </script>
 </body>
 </html>
