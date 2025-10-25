@@ -328,6 +328,20 @@ function gameEnd(won){
   submitToGoogleForm(playerName, score);
 }
 
+<script>
+function submitToGoogleForm(playerName, score) {
+  const formData = new FormData();
+  formData.append("entry.1846250720", playerName); // Player Name field ID
+  formData.append("entry.1321993443", score); // Score field ID
+
+  fetch("https://docs.google.com/forms/u/0/d/e/1FAIpQLSdu8u7Hy6Vk3AWynS7XsjlxLH4N39WGwNq3xJdH2Aq_ur89pg/formResponse", {
+    method: "POST",
+    mode: "no-cors",
+    body: formData
+  });
+}
+</script>
+
 // restart
 function restartGame(){
   endScreen.classList.add('hidden');
