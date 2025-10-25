@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BRICK BREAKER</title>
 <style>
-  html,body{margin:0;padding:0;height:100%;background:#001327;font-family:'Segoe UI',sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none}
+  html,body{margin:0;padding:0;height:100%;background:#001327;overflow:hidden;font-family:'Segoe UI',sans-serif;-webkit-user-select:none;user-select:none}
   #gameCanvas{width:100vw;height:100vh;display:block;background:linear-gradient(180deg,#001f3f,#000820);touch-action:none}
-  .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.8);z-index:10;color:#00ffd1;text-align:center}
+  .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.85);z-index:10;color:#00ffd1;text-align:center}
   .hidden{display:none}
-  .ui-input{padding:12px 16px;font-size:18px;border-radius:10px;border:2px solid #00ffd1;background:#000;color:#00ffd1;text-align:center;width:80%;max-width:300px;margin-top:10px}
-  .ui-btn{margin-top:16px;padding:10px 22px;border-radius:10px;background:#00ffd1;color:#001;font-weight:700;border:none;cursor:pointer;font-size:16px}
+  .ui-input{padding:12px 16px;font-size:18px;border-radius:10px;border:2px solid #00ffd1;background:#000;color:#00ffd1;text-align:center;width:80%;max-width:280px;margin-top:10px}
+  .ui-btn{margin-top:16px;padding:10px 24px;border-radius:10px;background:#00ffd1;color:#001;font-weight:700;border:none;cursor:pointer;font-size:16px}
   .popup-title{font-size:34px;margin-bottom:8px;text-shadow:0 0 12px rgba(0,255,209,.3)}
   .small{color:#fff;font-size:13px;margin-top:10px}
 </style>
@@ -20,14 +20,14 @@
   <div class="popup-title">BRICK BREAKER</div>
   <input id="playerName" class="ui-input" placeholder="Enter your name" maxlength="18">
   <button id="startBtn" class="ui-btn">Start Game</button>
-  <div class="small">Drag or tap to move paddle</div>
+  <div class="small">Drag on screen or use arrow keys</div>
 </div>
 
 <div id="endOverlay" class="overlay hidden">
   <div class="popup-title" id="endTitle">GAME OVER</div>
   <div id="endScore" style="font-size:18px;margin-bottom:10px"></div>
   <button id="restartBtn" class="ui-btn">Play Again</button>
-  <div class="small">Refresh to return to name screen</div>
+  <div class="small">Refresh to change player name</div>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -35,13 +35,13 @@
 <script>
 const canvas=document.getElementById("gameCanvas"),ctx=canvas.getContext("2d");
 let W=innerWidth,H=innerHeight;canvas.width=W;canvas.height=H;
-window.addEventListener("resize",()=>{W=innerWidth;H=innerHeight;canvas.width=W;canvas.height=H;computeLayout()});
+window.addEventListener("resize",()=>{W=innerWidth;H=innerHeight;canvas.width=W;canvas.height=H;computeLayout();});
 
-let scale,paddle,ball,bricks=[],rows=5,cols=8,brickW,brickH,brickGap,score=0,lives=3,running=false,playing=false,playerName="Player";
+let paddle,ball,bricks=[],rows=5,cols=8,brickW,brickH,brickGap,score=0,lives=3,playing=false,running=false,playerName="Player";
 let hitSfx,paddleSfx,winSfx,loseSfx,bgMusic;
 
 function computeLayout(){
-  scale=Math.min(W/480,H/640);
+  const scale=Math.min(W/480,H/640);
   const p_w=Math.max(80,120*scale),p_h=Math.max(8,14*scale);
   paddle={w:p_w,h:p_h,x:(W-p_w)/2,y:H-50*scale};
   const b_r=Math.max(6,8*scale);
@@ -49,9 +49,9 @@ function computeLayout(){
   brickGap=8*scale;
   brickW=Math.max(36,(W-60*scale-(cols-1)*brickGap)/cols);
   brickH=Math.max(18,18*scale);
-  createBricks();
+  createBricks(scale);
 }
-function createBricks(){
+function createBricks(scale){
   bricks=[];
   const top=80*scale;
   for(let r=0;r<rows;r++){
@@ -63,7 +63,6 @@ function createBricks(){
     }
   }
 }
-
 function loadAudio(){
   hitSfx=new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_7d19cf5c22.mp3?filename=pop-39222.mp3");
   paddleSfx=new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_d3318b4b53.mp3?filename=click-124467.mp3");
@@ -74,15 +73,16 @@ function loadAudio(){
 }
 
 function drawHUD(){
-  ctx.fillStyle="#fff";ctx.font=`${14*scale}px Arial`;
-  ctx.fillText(`Player: ${playerName}`,15*scale,22*scale);
-  ctx.fillText(`Score: ${score}`,W-110*scale,22*scale);
-  ctx.fillText(`Lives: ${lives}`,W-110*scale,40*scale);
+  ctx.fillStyle="#fff";ctx.font=`14px Arial`;
+  ctx.fillText(`Player: ${playerName}`,15,22);
+  ctx.fillText(`Score: ${score}`,W-110,22);
+  ctx.fillText(`Lives: ${lives}`,W-110,40);
 }
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();ctx.fill();}
-function draw(){ctx.clearRect(0,0,W,H);
-  for(const b of bricks){if(!b.hit){ctx.fillStyle=b.color;roundRect(b.x,b.y,b.w,b.h,4*scale);}}
-  ctx.fillStyle="#00ffd1";roundRect(paddle.x,paddle.y,paddle.w,paddle.h,6*scale);
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  for(const b of bricks){if(!b.hit){ctx.fillStyle=b.color;roundRect(b.x,b.y,b.w,b.h,4);}}
+  ctx.fillStyle="#00ffd1";roundRect(paddle.x,paddle.y,paddle.w,paddle.h,6);
   const g=ctx.createRadialGradient(ball.x,ball.y,1,ball.x,ball.y,ball.r);
   g.addColorStop(0,"#fff");g.addColorStop(1,"#7afad9");ctx.fillStyle=g;
   ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
@@ -96,40 +96,57 @@ function update(){
   if(ball.x>paddle.x&&ball.x<paddle.x+paddle.w&&ball.y+ball.r>paddle.y&&ball.dy>0){
     ball.dy=-Math.abs(ball.dy);
     const hitPos=(ball.x-(paddle.x+paddle.w/2))/(paddle.w/2);
-    ball.dx=hitPos*8*scale;try{paddleSfx.currentTime=0;paddleSfx.play();}catch{}
+    ball.dx=hitPos*8;
+    try{paddleSfx.currentTime=0;paddleSfx.play();}catch{}
   }
-  for(const b of bricks){if(!b.hit&&ball.x+ball.r>b.x&&ball.x-ball.r<b.x+b.w&&ball.y+ball.r>b.y&&ball.y-ball.r<b.y+b.h){
-      b.hit=true;ball.dy*=-1;score+=10;try{hitSfx.currentTime=0;hitSfx.play();}catch{}break;
-  }}
+  for(const b of bricks){
+    if(!b.hit&&ball.x+ball.r>b.x&&ball.x-ball.r<b.x+b.w&&ball.y+ball.r>b.y&&ball.y-ball.r<b.y+b.h){
+      b.hit=true;ball.dy*=-1;score+=10;
+      try{hitSfx.currentTime=0;hitSfx.play();}catch{}break;
+    }
+  }
   if(ball.y-ball.r>H){lives--;if(lives<=0){endGame("GAME OVER",loseSfx);}else resetBall();}
   if(bricks.every(b=>b.hit))endGame("YOU WIN!",winSfx);
 }
-function resetBall(){ball.x=W/2;ball.y=paddle.y-ball.r-10*scale;ball.dy=-4*scale;}
+function resetBall(){ball.x=W/2;ball.y=paddle.y-ball.r-10;ball.dy=-4;}
 function tick(){update();draw();if(running)requestAnimationFrame(tick);}
-function endGame(title,sound){try{sound.play();bgMusic.pause();}catch{}playing=false;running=false;
+function endGame(title,sound){
+  try{sound.play();bgMusic.pause();}catch{}
+  playing=false;running=false;
   document.getElementById("endTitle").textContent=title;
   document.getElementById("endScore").textContent="Score: "+score;
   document.getElementById("endOverlay").classList.remove("hidden");
 }
 
-/* controls */
-let pointerActive=false;
-canvas.addEventListener("pointerdown",e=>{pointerActive=true;movePaddle(e);if(!playing&&running)playing=true;});
-canvas.addEventListener("pointermove",e=>{if(pointerActive)movePaddle(e);});
-canvas.addEventListener("pointerup",()=>pointerActive=false);
-function movePaddle(e){const rect=canvas.getBoundingClientRect();let x=e.clientX-rect.left;paddle.x=Math.max(0,Math.min(W-paddle.w,x-paddle.w/2));}
-window.addEventListener("keydown",e=>{if(e.key==="ArrowLeft")paddle.x-=16*scale;if(e.key==="ArrowRight")paddle.x+=16*scale;if((e.key===" "||e.key==="Enter")&&!playing&&running)playing=true;});
+/* Controls */
+let touchActive=false;
+canvas.addEventListener("pointerdown",e=>{touchActive=true;movePaddle(e);if(!playing&&running)playing=true;});
+canvas.addEventListener("pointermove",e=>{if(touchActive)movePaddle(e);});
+canvas.addEventListener("pointerup",()=>touchActive=false);
+function movePaddle(e){
+  const rect=canvas.getBoundingClientRect();
+  let x=e.clientX-rect.left;
+  paddle.x=Math.max(0,Math.min(W-paddle.w,x-paddle.w/2));
+}
+window.addEventListener("keydown",e=>{
+  if(e.key==="ArrowLeft")paddle.x-=16;
+  if(e.key==="ArrowRight")paddle.x+=16;
+  if((e.key===" "||e.key==="Enter")&&!playing&&running)playing=true;
+});
 
 document.getElementById("startBtn").onclick=()=>{
   playerName=(document.getElementById("playerName").value||"Player").trim();
   document.getElementById("startOverlay").style.display="none";
-  loadAudio();try{bgMusic.play();}catch{}
-  computeLayout();score=0;lives=3;running=true;playing=false;
+  loadAudio();
+  computeLayout();
+  score=0;lives=3;running=true;playing=true;  // <— FIX: Start immediately
+  try{bgMusic.play();}catch{}
   tick();
 };
 document.getElementById("restartBtn").onclick=()=>{
   document.getElementById("endOverlay").classList.add("hidden");
-  computeLayout();score=0;lives=3;running=true;playing=false;try{bgMusic.currentTime=0;bgMusic.play();}catch{}tick();
+  computeLayout();score=0;lives=3;running=true;playing=true;
+  try{bgMusic.currentTime=0;bgMusic.play();}catch{}tick();
 };
 
 computeLayout();
