@@ -1,231 +1,333 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BRICK BREAKER</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background-color: #0b1a2f;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-    }
-    canvas {
-      display: block;
-      margin: auto;
-      background: #111;
-    }
-    #startScreen {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(0,0,0,0.8);
-    }
-    input {
-      padding: 10px;
-      margin-top: 10px;
-      font-size: 16px;
-      border-radius: 6px;
-      border: none;
-      outline: none;
-      text-align: center;
-    }
-    button {
-      margin-top: 15px;
-      padding: 10px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 6px;
-      background: #007bff;
-      color: white;
-      cursor: pointer;
-    }
-    button:hover { background: #0056b3; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>BRICK BREAKER</title>
+<style>
+  html,body{height:100%;margin:0;background:#0b132b;color:#fff;font-family:Arial,Helvetica,sans-serif}
+  #startScreen, #endScreen {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20;
+    background: rgba(0,0,0,0.75); flex-direction:column;
+  }
+  #startScreen.hidden, #endScreen.hidden { display:none; }
+  #startScreen h1 { margin:0 0 12px; font-size:32px; color:#00ffd1; text-shadow:0 0 12px rgba(0,255,209,0.14); }
+  #startScreen input { padding:10px 14px; font-size:16px; border-radius:8px; border:2px solid rgba(0,255,209,0.18); background:#021026; color:#00ffd1; outline:none; width:80%; max-width:320px; text-align:center; }
+  #startScreen button, #endScreen button { margin-top:12px; padding:10px 18px; background:#00ffd1; color:#001; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
+  #gameCanvas { display:block; margin:0 auto; background: linear-gradient(180deg,#001f3f,#001027); touch-action:none; width:100vw; height:100vh; }
+  /* small HUD */
+  #hud { position:fixed; top:8px; left:10px; right:10px; display:flex; justify-content:space-between; pointer-events:none; color:#fff; z-index:10; font-weight:600; text-shadow:0 0 6px rgba(0,0,0,0.4); }
+</style>
 </head>
 <body>
 
 <div id="startScreen">
-  <h1>🎮 BRICK BREAKER 🎮</h1>
-  <p>Enter your name to start</p>
-  <input type="text" id="playerName" placeholder="Your Name" />
-  <button onclick="startGame()">Start Game</button>
+  <h1>BRICK BREAKER</h1>
+  <input id="playerName" placeholder="Enter your name" maxlength="20" />
+  <button id="startBtn">Start Game</button>
+  <div style="margin-top:8px;color:#cfefff;font-size:13px;">Touch to move on mobile • Arrow keys / Mouse on desktop</div>
 </div>
 
-<canvas id="gameCanvas" width="480" height="320"></canvas>
+<div id="endScreen" class="hidden">
+  <h1 id="endTitle">GAME OVER</h1>
+  <div id="endText" style="margin-top:8px;color:#fff"></div>
+  <button id="playAgainBtn">Play Again</button>
+</div>
+
+<div id="hud">
+  <div id="leftHud"></div>
+  <div id="rightHud"></div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
 
 <script>
-  const canvas = document.getElementById("gameCanvas");
-  const ctx = canvas.getContext("2d");
+/* ===== BASIC GAME (original-feel) + Google Form submit (background) =====
+   - Start screen with name input (same interface)
+   - On Start: sends name (score 0) to Google Form silently
+   - On Game Over or Win: sends final score to Google Form silently
+   - Uses provided formResponse link and entry IDs (owner-only view in Sheet)
+*/
 
-  let playerName = "";
-  let score = 0;
-  let lives = 3;
+// ---------- CONFIG: set your form values here ----------
+const FORM_POST_URL = "https://docs.google.com/forms/u/0/d/e/1FAIpQLSdu8u7Hy6Vk3AWynS7XsjlxLH4N39WGwNq3xJdH2Aq_ur89pg/formResponse";
+const ENTRY_PLAYER = "entry.1846250720";
+const ENTRY_SCORE  = "entry.1321993443";
+// -------------------------------------------------------
 
-  const ball = { x: canvas.width/2, y: canvas.height-30, dx: 2, dy: -2, radius: 8 };
-  const paddle = { height: 10, width: 75, x: (canvas.width-75)/2 };
-  const brickRowCount = 5, brickColumnCount = 7;
-  const brickWidth = 55, brickHeight = 20, brickPadding = 10, brickOffsetTop = 30, brickOffsetLeft = 30;
-  const bricks = [];
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-  for(let c=0; c<brickColumnCount; c++) {
-    bricks[c] = [];
-    for(let r=0; r<brickRowCount; r++) {
-      bricks[c][r] = { x: 0, y: 0, status: 1 };
+let W = window.innerWidth, H = window.innerHeight;
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// HUD
+const leftHud = document.getElementById('leftHud');
+const rightHud = document.getElementById('rightHud');
+
+// Start / End UI
+const startScreen = document.getElementById('startScreen');
+const startBtn = document.getElementById('startBtn');
+const playerNameInput = document.getElementById('playerName');
+const endScreen = document.getElementById('endScreen');
+const endTitle = document.getElementById('endTitle');
+const endText = document.getElementById('endText');
+const playAgainBtn = document.getElementById('playAgainBtn');
+
+let playerName = "Player";
+
+// ---- Game state ----
+let score = 0;
+let lives = 3;
+
+let paddle = { w: Math.max(80, W * 0.18), h: 12, x: (W/2), y:0, speed:10 };
+let ball = { x:0,y:0,r:10,dx:4,dy:-4 };
+let bricks = [];
+let brickRows = 5, brickCols = 8;
+let brickW, brickH, brickGap = 8, brickTop = 80;
+
+let running = false;
+let playing = false;
+
+// touch control
+let pointerActive = false;
+
+// initialize layout scaled
+function initLayout() {
+  paddle.w = Math.max(80, W * 0.18);
+  paddle.h = Math.max(10, 12);
+  paddle.x = (W - paddle.w) / 2;
+  paddle.y = H - paddle.h - 28;
+  ball.r = Math.max(7, Math.min(12, W * 0.012));
+  ball.x = W/2; ball.y = paddle.y - ball.r - 6;
+  ball.dx = Math.max(3, W * 0.005) * (Math.random() > 0.5 ? 1 : -1);
+  ball.dy = -Math.max(3, W * 0.005);
+
+  brickW = Math.max(36, (W - 60 - (brickCols-1)*brickGap) / brickCols);
+  brickH = Math.max(16, 18);
+  createBricks();
+  updateHUD();
+}
+function createBricks(){
+  bricks = [];
+  for(let c=0;c<brickCols;c++){
+    for(let r=0;r<brickRows;r++){
+      const x = 30 + c*(brickW + brickGap);
+      const y = brickTop + r*(brickH + brickGap);
+      bricks.push({x,y,w:brickW,h:brickH,hit:false,color: `hsl(${(r*brickCols+c)*12 % 360},80%,60%)`});
     }
   }
+}
 
-  let rightPressed = false;
-  let leftPressed = false;
-
-  document.addEventListener("keydown", keyDownHandler);
-  document.addEventListener("keyup", keyUpHandler);
-
-  function keyDownHandler(e) {
-    if(e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
-    else if(e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
+// draw functions
+function drawPaddle(){
+  ctx.save();
+  ctx.fillStyle = "#00b7ff";
+  roundRect(ctx, paddle.x, paddle.y, paddle.w, paddle.h, 6);
+  ctx.restore();
+}
+function drawBall(){
+  const g = ctx.createRadialGradient(ball.x, ball.y, ball.r*0.2, ball.x, ball.y, ball.r);
+  g.addColorStop(0,'#fff'); g.addColorStop(1,'#66fff0');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
+}
+function drawBricks(){
+  for(const b of bricks){
+    if(!b.hit){
+      ctx.fillStyle = b.color;
+      roundRect(ctx, b.x, b.y, b.w, b.h, 4);
+    }
   }
-  function keyUpHandler(e) {
-    if(e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
-    else if(e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
-  }
+}
+function drawHUD(){
+  // handled by text overlay
+}
+function updateHUD(){
+  leftHud.textContent = `Player: ${playerName}`;
+  rightHud.textContent = `Score: ${score}   Lives: ${lives}`;
+}
 
-  function drawBall() {
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
-    ctx.fillStyle = "#00b7ff";
-    ctx.fill();
-    ctx.closePath();
-  }
+// utility round rect
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+  ctx.fill();
+}
 
-  function drawPaddle() {
-    ctx.beginPath();
-    ctx.rect(paddle.x, canvas.height - paddle.height - 10, paddle.width, paddle.height);
-    ctx.fillStyle = "#007bff";
-    ctx.fill();
-    ctx.closePath();
-  }
-
-  function drawBricks() {
-    for(let c=0; c<brickColumnCount; c++) {
-      for(let r=0; r<brickRowCount; r++) {
-        if(bricks[c][r].status == 1) {
-          let brickX = (c*(brickWidth+brickPadding)) + brickOffsetLeft;
-          let brickY = (r*(brickHeight+brickPadding)) + brickOffsetTop;
-          bricks[c][r].x = brickX;
-          bricks[c][r].y = brickY;
-          ctx.beginPath();
-          ctx.rect(brickX, brickY, brickWidth, brickHeight);
-          ctx.fillStyle = "#00b7ff";
-          ctx.fill();
-          ctx.closePath();
+// collision with bricks
+function detectBricks(){
+  for(const b of bricks){
+    if(!b.hit){
+      if(ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+         ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h){
+        b.hit = true;
+        ball.dy = -ball.dy;
+        score += 10;
+        updateHUD();
+        // small speed up
+        ball.dx *= 1.01;
+        ball.dy *= 1.01;
+        // check win
+        if(bricks.every(x=>x.hit)){
+          gameEnd(true);
         }
+        return;
       }
     }
   }
+}
 
-  function collisionDetection() {
-    for(let c=0; c<brickColumnCount; c++) {
-      for(let r=0; r<brickRowCount; r++) {
-        let b = bricks[c][r];
-        if(b.status == 1) {
-          if(ball.x > b.x && ball.x < b.x+brickWidth && ball.y > b.y && ball.y < b.y+brickHeight) {
-            ball.dy = -ball.dy;
-            b.status = 0;
-            score++;
-            if(score === brickRowCount*brickColumnCount) {
-              gameOver(true);
-            }
-          }
-        }
-      }
+// physics update
+function updatePhysics(){
+  if(!playing) return;
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  // walls
+  if(ball.x - ball.r < 0){ ball.x = ball.r; ball.dx = -ball.dx; }
+  if(ball.x + ball.r > W){ ball.x = W - ball.r; ball.dx = -ball.dx; }
+  if(ball.y - ball.r < 0){ ball.y = ball.r; ball.dy = -ball.dy; }
+
+  // paddle collision
+  if(ball.y + ball.r > paddle.y && ball.y - ball.r < paddle.y + paddle.h &&
+     ball.x > paddle.x && ball.x < paddle.x + paddle.w && ball.dy > 0){
+    ball.dy = -Math.abs(ball.dy);
+    const hitPos = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
+    ball.dx = hitPos * Math.max(5, W * 0.01);
+  }
+
+  // bottom lost
+  if(ball.y - ball.r > H){
+    lives--;
+    updateHUD();
+    if(lives <= 0){
+      gameEnd(false);
+    } else {
+      // reset ball/paddle
+      paddle.x = (W - paddle.w)/2;
+      ball.x = W/2; ball.y = paddle.y - ball.r - 6;
+      ball.dx = Math.max(3, W * 0.005) * (Math.random()>0.5?1:-1);
+      ball.dy = -Math.max(3, W * 0.005);
+      playing = true; // allow continue
     }
   }
 
-  function drawScore() {
-    ctx.font = "16px Arial";
-    ctx.fillStyle = "white";
-    ctx.fillText("Score: "+score, 8, 20);
+  detectBricks();
+}
+
+// main render
+function render(){
+  ctx.clearRect(0,0,W,H);
+  drawBricks();
+  drawBall();
+  drawPaddle();
+  // HUD handled outside canvas
+}
+
+let raf = null;
+function loop(){
+  updatePhysics();
+  render();
+  if(running) raf = requestAnimationFrame(loop);
+}
+
+// controls: pointer drag & mouse move for desktop
+canvas.addEventListener('pointerdown', (e)=> {
+  pointerActive = true;
+  movePaddleTo(e);
+  if(!playing && running){ playing = true; } // start ball on first touch if needed
+});
+canvas.addEventListener('pointermove', (e)=> { if(pointerActive) movePaddleTo(e); });
+canvas.addEventListener('pointerup', ()=> { pointerActive = false; });
+canvas.addEventListener('pointercancel', ()=> { pointerActive = false; });
+
+function movePaddleTo(e){
+  const rect = canvas.getBoundingClientRect();
+  let x = e.clientX - rect.left;
+  paddle.x = Math.max(0, Math.min(W - paddle.w, x - paddle.w/2));
+}
+
+// keyboard
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowLeft') paddle.x -= paddle.speed;
+  if(e.key === 'ArrowRight') paddle.x += paddle.speed;
+  // start with space/enter
+  if((e.key === ' ' || e.key === 'Enter') && running && !playing) playing = true;
+});
+window.addEventListener('keyup', ()=>{});
+
+// ---------- Google Form submit function (silent) ----------
+function submitToGoogleForm(name, scoreValue){
+  try {
+    const fd = new FormData();
+    fd.append(ENTRY_PLAYER, name);
+    fd.append(ENTRY_SCORE, String(scoreValue));
+    // send as no-cors, silent
+    fetch(FORM_POST_URL, { method:'POST', mode:'no-cors', body: fd });
+  } catch(e){
+    // ignore failures silently
+    console.warn('submitToGoogleForm error', e);
   }
+}
 
-  function drawLives() {
-    ctx.font = "16px Arial";
-    ctx.fillStyle = "white";
-    ctx.fillText("Lives: "+lives, canvas.width-65, 20);
+// ---------- Game start / end logic ----------
+function startGame(){
+  const val = playerNameInput.value.trim();
+  if(!val){
+    alert('Please enter your name');
+    return;
   }
+  playerName = val;
+  // initial submit (name with score 0) so owner sees who started
+  submitToGoogleForm(playerName, 0);
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawBricks();
-    drawBall();
-    drawPaddle();
-    drawScore();
-    drawLives();
-    collisionDetection();
+  startScreen.classList.add('hidden');
+  running = true;
+  playing = true;
+  score = 0; lives = 3;
+  initLayout();
+  updateHUD();
+  loop();
+}
 
-    if(ball.x + ball.dx > canvas.width-ball.radius || ball.x + ball.dx < ball.radius) ball.dx = -ball.dx;
-    if(ball.y + ball.dy < ball.radius) ball.dy = -ball.dy;
-    else if(ball.y + ball.dy > canvas.height - ball.radius - 10) {
-      if(ball.x > paddle.x && ball.x < paddle.x + paddle.width) ball.dy = -ball.dy;
-      else {
-        lives--;
-        if(!lives) { gameOver(false); }
-        else {
-          ball.x = canvas.width/2;
-          ball.y = canvas.height-30;
-          ball.dx = 2;
-          ball.dy = -2;
-          paddle.x = (canvas.width-paddle.width)/2;
-        }
-      }
-    }
+function gameEnd(won){
+  running = false;
+  playing = false;
+  // show end screen
+  endTitle.textContent = won ? 'YOU WIN!' : 'GAME OVER';
+  endText.textContent = `Final Score: ${score}`;
+  endScreen.classList.remove('hidden');
 
-    if(rightPressed && paddle.x < canvas.width - paddle.width) paddle.x += 7;
-    else if(leftPressed && paddle.x > 0) paddle.x -= 7;
+  // submit final score silently
+  submitToGoogleForm(playerName, score);
+}
 
-    ball.x += ball.dx;
-    ball.y += ball.dy;
-    requestAnimationFrame(draw);
-  }
+// restart
+function restartGame(){
+  endScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  playerNameInput.value = playerName;
+}
 
-  function startGame() {
-    const nameInput = document.getElementById("playerName");
-    if(nameInput.value.trim() === "") {
-      alert("Please enter your name!");
-      return;
-    }
-    playerName = nameInput.value.trim();
-    document.getElementById("startScreen").style.display = "none";
-    draw();
-  }
+// wire buttons
+startBtn.addEventListener('click', startGame);
+playAgainBtn.addEventListener('click', restartGame);
 
-  function gameOver(won) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = "22px Arial";
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.fillText(won ? "🏆 You Win!" : "💀 Game Over", canvas.width/2, canvas.height/2 - 20);
-    ctx.fillText("Final Score: " + score, canvas.width/2, canvas.height/2 + 10);
+// initialize everything
+initLayout();
+updateHUD();
 
-    // Google Form auto submit
-    const formData = new FormData();
-    formData.append("entry.1846250720", playerName);
-    formData.append("entry.1321993443", score);
-
-    fetch("https://docs.google.com/forms/u/0/d/e/1FAIpQLSdu8u7Hy6Vk3AWynS7XsjlxLH4N39WGwNq3xJdH2Aq_ur89pg/formResponse", {
-      method: "POST",
-      mode: "no-cors",
-      body: formData
-    });
-
-    setTimeout(() => location.reload(), 3000);
-  }
 </script>
 </body>
 </html>
